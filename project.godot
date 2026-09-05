@@ -11,8 +11,12 @@ config_version=5
 [application]
 
 config/name="Astroforge"
-config/features=PackedStringArray("4.7", "Forward Plus")
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+ServerManager="*uid://bjnosifhmvmep"
 
 [display]
 

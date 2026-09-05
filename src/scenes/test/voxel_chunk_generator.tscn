@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://brpguwe5eg43q"]
+
+[ext_resource type="Script" uid="uid://by4jpstqfbllw" path="res://scripts/Tools/VoxelGeneratorTestToolThreaded.cs" id="1_wu626"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rtqa3"]
+metallic_specular = 0.0
+ao_light_affect = 1.0
+
+[node name="Voxel Chunk Generator" type="Node3D" unique_id=910438296]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1292302794]
+material_override = SubResource("StandardMaterial3D_rtqa3")
+script = ExtResource("1_wu626")
+GenerationRadius = 5
