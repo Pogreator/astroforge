@@ -106,7 +106,7 @@ public static class VoxelMesher
                         byte valEnd = cubeValues[cornerIdxEnd];
 
                         int cornerA = i;
-                        float t = 0.5f; // Interpolation level
+                        float t = 0.8f; // Interpolation level
                         if (valEnd != valStart)
                         {
                             t = (float)(isolevel - valStart) / (float)(valEnd - valStart);

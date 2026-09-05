@@ -44,7 +44,7 @@ public partial class VoxelGeneratorTestTool : MeshInstance3D
 					for (int z = -1; z <= 1; z++)
 					{
 						Vector3I relativePos = TargetChunkPosition + new Vector3I(x, y, z);
-						byte[] rawBytes = PlanetGenerator.GenerateChunkData(relativePos, WorldSeed);
+						byte[] rawBytes = PlanetGenerator.GenerateChunkDataTest(relativePos, WorldSeed);
 						
 						var mockChunk = new ChunkData(relativePos, 16) { VoxelData = rawBytes };
 						mockWorldData[relativePos] = mockChunk;

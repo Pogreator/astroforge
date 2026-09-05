@@ -70,7 +70,7 @@ public partial class VoxelGeneratorTestToolThreaded : MeshInstance3D
 		long noiseGroupId = WorkerThreadPool.AddGroupTask(Callable.From<int>((index) => 
 		{
 			Vector3I relativePos = dataPositionArray[index];
-			byte[] rawBytes = PlanetGenerator.GenerateChunkData(relativePos, WorldSeed);
+			byte[] rawBytes = PlanetGenerator.GenerateChunkDataTest(relativePos, WorldSeed);
 
 			var mockChunk = new ChunkData(relativePos, 16) { VoxelData = rawBytes };
 			mockWorldData[relativePos] = mockChunk;
