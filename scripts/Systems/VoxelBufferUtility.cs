@@ -41,7 +41,7 @@ public static class VoxelBufferUtility
                     if (chunkMap.TryGetValue(targetChunkCoords, out var sourceChunk) && sourceChunk != null)
                     {
                         int coreIdx = (blockX * 256) + (blockY * 16) + blockZ;
-                        paddedBuffer[paddedIdx] = sourceChunk.VoxelData[coreIdx];
+                        paddedBuffer[paddedIdx] = sourceChunk.VoxelIso[coreIdx];
                     }
                     else
                     {

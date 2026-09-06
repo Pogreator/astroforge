@@ -8,7 +8,7 @@ public static class PlanetGenerator
 
     public static byte[] GenerateChunkDataTest(Vector3I chunkPos, int seed)
     {
-        byte[] voxelData = new byte[CoreSize*CoreSize*CoreSize];
+        byte[] voxelIso = new byte[CoreSize*CoreSize*CoreSize];
 
         var noise = new FastNoiseLite();
         noise.Seed = seed;
@@ -31,17 +31,38 @@ public static class PlanetGenerator
                     
                     byte finalVoxelValue = (byte)Mathf.Clamp(scaledDensity, 0, 255);
                     int flatIndex = (x*CoreSize*CoreSize) + (y*CoreSize) + z;
-                    voxelData[flatIndex] = finalVoxelValue;
+                    voxelIso[flatIndex] = finalVoxelValue;
                 }
             }
         }
 
-        return voxelData;
+        return voxelIso;
     }
 
     public static byte[] GenerateChunkDataPlanet(Vector3I chunkPos, Vector3 center, int seed, float radius)
     {
-        byte[] voxelData = new byte[CoreSize*CoreSize*CoreSize];
+        byte[] voxelIso = new byte[CoreSize*CoreSize*CoreSize];
+        float maxMountainHeight = 15.0f;
+        float crustThickness = 2.0f;
+
+        int chunkXOffset = chunkPos.X * CoreSize;
+        int chunkYOffset = chunkPos.Y * CoreSize;
+        int chunkZOffset = chunkPos.Z * CoreSize;
+
+        Vector3 chunkWorldCenter = new Vector3(chunkXOffset, chunkYOffset, chunkZOffset) + new Vector3(CoreSize / 2f, CoreSize / 2f, CoreSize / 2f);
+        float distanceToChunk = (chunkWorldCenter - center).Length();
+        float chunkRadius = (new Vector3(CoreSize, CoreSize, CoreSize) * 0.5f).Length();
+
+        if (distanceToChunk - chunkRadius > radius + maxMountainHeight)
+        {
+            System.Array.Fill(voxelIso, (byte)0);
+            return voxelIso;
+        }
+        if (distanceToChunk + chunkRadius < radius - maxMountainHeight)
+        {
+            System.Array.Fill(voxelIso, (byte)255);
+            return voxelIso;
+        }
 
         var noise = new FastNoiseLite();
         noise.Seed = seed;
@@ -50,38 +71,37 @@ public static class PlanetGenerator
 
         for (int x = 0; x < CoreSize; x++)
         {
-            int worldX = (chunkPos.X * CoreSize) + x;
+            int worldX = chunkXOffset + x;
+            int xStride = x * CoreSize * CoreSize;
             for (int y = 0; y < CoreSize; y++)
             {
-                int worldY = (chunkPos.Y * CoreSize) + y;
+                int worldY = chunkYOffset + y;
+                int yStride = y * CoreSize;
+
                 for (int z = 0; z < CoreSize; z++)
                 {
-                    int worldZ = (chunkPos.Z * CoreSize) + z;
+                    int worldZ = chunkZOffset + z;
 
                     Vector3 voxelWorldPos = new Vector3(worldX, worldY, worldZ);
-
                     Vector3 toCenter = voxelWorldPos - center;
                     float distance = toCenter.Length();
 
-                    Vector3 direction = distance > 0.0001f ? toCenter.Normalized() : Vector3.Up;
+                    Vector3 direction = distance > 0.0001f ? toCenter / distance : Vector3.Up;
 
                     float noiseValue = noise.GetNoise3Dv(direction * radius);
-                    float maxMountainHeight = 15.0f;
                     float terrainOffset = noiseValue * maxMountainHeight;
 
                     float density = distance - (radius + terrainOffset);
 
-                    float crustThickness = 2.0f;
                     float normalizedDensity = Mathf.Clamp(density / crustThickness, -1.0f, 1.0f);
-
                     byte voxelValue = (byte)Mathf.RoundToInt((1.0f - normalizedDensity) * 127.5f);
 
-                    int index = (x * CoreSize * CoreSize) + (y * CoreSize) + z;
-                    voxelData[index] = voxelValue;
+                    int index = xStride + yStride + z;
+                    voxelIso[index] = voxelValue;
                 }
             }
         }
 
-        return voxelData;
+        return voxelIso;
     }
 }

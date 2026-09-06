@@ -72,7 +72,7 @@ public partial class VoxelGeneratorTestToolThreaded : MeshInstance3D
 			Vector3I relativePos = dataPositionArray[index];
 			byte[] rawBytes = PlanetGenerator.GenerateChunkDataTest(relativePos, WorldSeed);
 
-			var mockChunk = new ChunkData(relativePos, 16) { VoxelData = rawBytes };
+			var mockChunk = new ChunkData(relativePos, 16) { VoxelIso = rawBytes };
 			mockWorldData[relativePos] = mockChunk;
 		}), dataPositionArray.Length);
 
