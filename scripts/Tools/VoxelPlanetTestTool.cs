@@ -14,6 +14,7 @@ public partial class VoxelPlanetTestTool : Node3D
 	[Export] public int WorldSeed { get; set; } = 0;
 	[Export] public byte IsoLevel { get; set; } = 128;
 	[Export] public int ChunksPerBatch { get; set; } = 32; 
+	[Export] public float CameraMovementThreshold { get; set; } = 8.0f; 
 	[Export] public float LOD0Distance { get; set; } = 50;
 	[Export] public float LOD1Distance { get; set; } = 100;
 	[Export] public float LOD2Distance { get; set; } = 150;
@@ -39,6 +40,9 @@ public partial class VoxelPlanetTestTool : Node3D
 	private ConcurrentDictionary<Vector3I, int> LoadedChunkLOD { get; set; }
 	private ConcurrentDictionary<Vector3I, MeshInstance3D> ActiveChunkNodes { get; set; }
 	private ConcurrentQueue<(Vector3I pos, int lod, MeshData mesh)> MeshRenderQueue { get; set; } = new();
+	private Vector3 _lastCalculatedCameraPos = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+	private PlanetOctreeNode rootNode;
+	private bool _isUpdatingQueue = false;
 	private bool _isGeneratingChunks = false;
 	private bool _isSortingAndFiltering = false;
 	private long _activeChunkGroupId = -1;
@@ -48,6 +52,7 @@ public partial class VoxelPlanetTestTool : Node3D
 	{
 		ChunkPositions ??= new List<Vector3I>();
 		ChunkPositions.Clear();
+		rootNode = null; 
 
 		for (int x = -GenerationRadius - 1; x <= GenerationRadius + 1; x++)
 			{
@@ -65,6 +70,18 @@ public partial class VoxelPlanetTestTool : Node3D
 				}
 			}
 		}
+
+		float planetSizeCube = (GenerationRadius * 2 + 2) * 16.0f; 
+		Vector3 planetCenter = (Vector3)TargetChunkPosition * 16.0f;
+		HashSet<Vector3I> validPositionsMap = new HashSet<Vector3I>(ChunkPositions);
+
+		WorkerThreadPool.AddTask(Callable.From(() =>
+		{
+			PlanetOctreeNode tempRoot = new PlanetOctreeNode(planetCenter, planetSizeCube, 0);
+			tempRoot.Subdivide(validPositionsMap);
+			
+			rootNode = tempRoot; 
+		}));
 	}
 
 	public override void _EnterTree()
@@ -81,37 +98,57 @@ public partial class VoxelPlanetTestTool : Node3D
 		SetProcess(_runRealTimeGeneration);
 	}
 
+	private void TraverseAndSelectLOD(PlanetOctreeNode node ,Vector3 cameraPos, float[] lodDistances, ConcurrentDictionary<Vector3I, int> chunkQueue)
+	{
+		if (node == null) return;
+		float distSq = (node.Center - cameraPos).LengthSquared();
+	
+		float maxInfluenceDistance = node.Size * 1.5f + lodDistances[4]; 
+		if (distSq > maxInfluenceDistance * maxInfluenceDistance)
+		{
+			return; 
+		}
+
+		if (node.IsLeaf)
+		{
+			float distance = (node.Center - cameraPos).Length();
+			int targetLod = 4;
+
+			if (distance <= lodDistances[0])      targetLod = 0;
+			else if (distance <= lodDistances[1]) targetLod = 1;
+			else if (distance <= lodDistances[2]) targetLod = 2;
+			else if (distance <= lodDistances[3]) targetLod = 3;
+			else if (distance <= lodDistances[4]) targetLod = 4;
+			else if (distance > lodDistances[4]) targetLod = -1;
+
+			chunkQueue.TryGetValue(node.ChunkPos, out int currentLod);
+			if (targetLod != currentLod)
+			{
+				chunkQueue[node.ChunkPos] = targetLod;
+			}
+		}
+		else
+		{
+			// Recurse down into active sub-nodes
+			for (int i = 0; i < 8; i++)
+			{
+				TraverseAndSelectLOD(node.Children[i], cameraPos, lodDistances,chunkQueue);
+			}
+		}
+	}
+
 	private void ChunkQueueUpdate(Vector3 cameraPos)
 	{
 		if (ChunkQueue == null || LoadedChunks == null || !IsInsideTree()) return;
-		float radiusOffset = (float)GenerationRadius;
-		Vector3 newCameraPos = cameraPos / 16.0f;
-		Vector3 planetPosGlobal = this.GlobalPosition / 16.0f;
 
-		foreach (Vector3I chunk in ChunkPositions)
-		{
-			float distance = (((Vector3)chunk + planetPosGlobal) - newCameraPos).Length() - radiusOffset; 
-			// Different LODs that have to be added to queue
-			if (distance <= LOD0Distance)
-			{
-				ChunkQueue[chunk] = 0;
-			} else if (distance <= LOD1Distance)
-			{
-				ChunkQueue[chunk] = 1;
-			} else if (distance <= LOD2Distance)
-			{
-				ChunkQueue[chunk] = 2;
-			} else if (distance <= LOD3Distance)
-			{
-				ChunkQueue[chunk] = 3;
-			} else if (distance <= LOD4Distance)
-			{
-				ChunkQueue[chunk] = 4;
-			} else if (LoadedChunks.ContainsKey(chunk))
-			{
-				ChunkQueue[chunk] = -1;
-			}
-		}
+		if (cameraPos.DistanceTo(_lastCalculatedCameraPos) < CameraMovementThreshold) return;
+		_lastCalculatedCameraPos = cameraPos;
+
+		float[] lodDistancesArray = new float[] { LOD0Distance, LOD1Distance, LOD2Distance, LOD3Distance, LOD4Distance };
+
+		// Recursively processes your entire planet tracking database in microseconds!
+		TraverseAndSelectLOD(rootNode, cameraPos, lodDistancesArray, ChunkQueue);
+
 	}
 
 	private void RemoveAndCleanupChunkNode(Vector3I chunkPos)
