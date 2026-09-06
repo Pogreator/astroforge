@@ -1,6 +1,5 @@
 [gd_scene format=3 uid="uid://brpguwe5eg43q"]
 
-[ext_resource type="Script" uid="uid://b7xi6jcm0l27g" path="res://scripts/Tools/VoxelGeneratorTestToolThreadedPlanet.cs" id="1_wu626"]
 [ext_resource type="Script" uid="uid://dt2kg76j82nv0" path="res://scripts/Tools/VoxelPlanetTestTool.cs" id="2_oon5g"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rtqa3"]
@@ -11,13 +10,8 @@ ao_light_affect = 1.0
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1292302794]
 material_override = SubResource("StandardMaterial3D_rtqa3")
-script = ExtResource("1_wu626")
 
 [node name="Planet" type="Node3D" parent="." unique_id=521708907]
 script = ExtResource("2_oon5g")
-LOD0Distance = 20.0
-LOD1Distance = 50.0
-LOD2Distance = 100.0
-LOD3Distance = 700.0
-LOD4Distance = 750.0
-GenerationRadius = 20
+PlanetRadius = 4
+RunRealTImeGeneration = true

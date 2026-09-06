@@ -3,53 +3,51 @@ using Godot;
 
 public static class VoxelBufferUtility
 {
-    private const int CoreSize = 16;
-    private const int PaddedSize = 18;
-
-    private static int GetPaddedIndex(int x, int y, int z) => (x * 324) + (y * 18) + z;
-    private static int GetCoreIndex(int x, int y, int z) => (x * 256) + (y * 16) + z;
-
-    public static byte[] BuildPaddedBuffer(Vector3I chunkPos, ConcurrentDictionary<Vector3I, ChunkData> chunkMap)
+    private static int GetPaddedIndex(int x, int y, int z, int paddedSize)
     {
-        byte[] paddedBuffer = new byte[PaddedSize * PaddedSize * PaddedSize];
+        return (x * paddedSize * paddedSize) + (y * paddedSize) + z;
+    }
 
-        for (int x = 0; x < PaddedSize; x++)
+    public static VoxelData[] BuildPaddedBuffer(Vector3I chunkPos, ConcurrentDictionary<Vector3I, ChunkData> chunkMap, int size)
+    {
+        int paddedSize = size + 2;
+        VoxelData[] paddedBuffer = new VoxelData[paddedSize * paddedSize * paddedSize];
+
+        for (int x = 0; x < paddedSize; x++)
         {
-            for (int y = 0; y < PaddedSize; y++)
+            for (int y = 0; y < paddedSize; y++)
             {
-                for (int z = 0; z < PaddedSize; z++)
+                for (int z = 0; z < paddedSize; z++)
                 {
-                    // Convert padded layout array space (0 to 17) to planet coordinates (-1 to 16)
                     int localX = x - 1;
                     int localY = y - 1;
                     int localZ = z - 1;
 
-                    // Determine which chunk actually owns this specific coordinate step
-                    int chunkOffsetX = Mathf.FloorToInt((float)localX / CoreSize);
-                    int chunkOffsetY = Mathf.FloorToInt((float)localY / CoreSize);
-                    int chunkOffsetZ = Mathf.FloorToInt((float)localZ / CoreSize);
+                    int chunkOffsetX = Mathf.FloorToInt((float)localX / size);
+                    int chunkOffsetY = Mathf.FloorToInt((float)localY / size);
+                    int chunkOffsetZ = Mathf.FloorToInt((float)localZ / size);
 
                     Vector3I targetChunkCoords = chunkPos + new Vector3I(chunkOffsetX, chunkOffsetY, chunkOffsetZ);
 
-                    // Find the exact block array index within that target chunk (0 to 15)
-                    int blockX = Mathf.PosMod(localX, CoreSize);
-                    int blockY = Mathf.PosMod(localY, CoreSize);
-                    int blockZ = Mathf.PosMod(localZ, CoreSize);
+                    int blockX = Mathf.PosMod(localX, size);
+                    int blockY = Mathf.PosMod(localY, size);
+                    int blockZ = Mathf.PosMod(localZ, size);
 
-                    int paddedIdx = (x * 324) + (y * 18) + z;
+                    int paddedIdx = GetPaddedIndex(x, y, z, paddedSize);
 
                     if (chunkMap.TryGetValue(targetChunkCoords, out var sourceChunk) && sourceChunk != null)
                     {
-                        int coreIdx = (blockX * 256) + (blockY * 16) + blockZ;
-                        paddedBuffer[paddedIdx] = sourceChunk.VoxelIso[coreIdx];
+                        int coreIdx = sourceChunk.GetIndex(blockX, blockY, blockZ);
+                        paddedBuffer[paddedIdx] = sourceChunk.Voxels[coreIdx];
                     }
                     else
                     {
-                        paddedBuffer[paddedIdx] = 0; // Default to air if neighbor isn't ready
+                        // Default fallback if neighbor chunk data isn't ready/loaded yet
+                        paddedBuffer[paddedIdx] = new VoxelData(0, 0, 0); 
                     }
                 }
             }
         }
         return paddedBuffer;
     }
-}   
+}
