@@ -107,56 +107,11 @@ public partial class VoxelPlanetTestTool : Node3D
 
 	private void AsyncGenerateChunkMesh(PlanetOctreeNode node)
 	{
-		int voxelResolution = 16; 
+		int chunkSize = (int)node.Size;
 
-		VoxelData[] coreVoxels = PlanetGenerator.GenerateChunkDataPlanet(
-			node.ChunkPos, 
-			node.Center, 
-			voxelResolution,
-			WorldSeed, 
-			PlanetRadius, 
-			node.LOD
-		);
-
-		ChunkData chunk = new ChunkData(node.ChunkPos, voxelResolution);
-		chunk.Voxels = coreVoxels;
-		_globalChunkMap[node.ChunkPos] = chunk;
-
-		VoxelData[] paddedVoxels = VoxelBufferUtility.BuildPaddedBuffer(
-			node.ChunkPos, 
-			_globalChunkMap, 
-			voxelResolution
-		);
-
-		MeshData computedMesh = VoxelMesher.GenerateMarchingCubes(
-			paddedVoxels, 
-			voxelResolution, 
-			IsoLevel, 
-			node.LOD
-		); 
-
-		if (computedMesh.Verticies.Count == 0)
-		{
-			node.MeshesPending = false;
-			return;
-		}
-
-		float worldScaleFactor = node.Size / voxelResolution;
-		for (int i = 0; i < computedMesh.Verticies.Count; i++)
-		{
-			computedMesh.Verticies[i] *= worldScaleFactor;
-		}
-
-		var arrayMesh = new ArrayMesh();
-		var arrays = new Godot.Collections.Array();
-		arrays.Resize((int)Mesh.ArrayType.Max);
-
-		arrays[(int)Mesh.ArrayType.Vertex] = computedMesh.Verticies.ToArray();
-		arrays[(int)Mesh.ArrayType.Index] = computedMesh.Triangles.ToArray();
-		arrays[(int)Mesh.ArrayType.Normal] = computedMesh.Normals.ToArray();
-
-		arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
 		
+
+		ArrayMesh arrayMesh = new ArrayMesh();
 		Callable.From(() => OnMeshGenerationCompleted(node, arrayMesh)).CallDeferred();
 	}
 

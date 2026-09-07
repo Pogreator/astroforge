@@ -14,4 +14,3 @@ material_override = SubResource("StandardMaterial3D_rtqa3")
 [node name="Planet" type="Node3D" parent="." unique_id=521708907]
 script = ExtResource("2_oon5g")
 PlanetRadius = 4
-RunRealTImeGeneration = true
