@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using Godot;
 
 [Tool]
-public partial class VoxelPlanetTestTool : Node3D
+public partial class VoxelPlanetTestToolCube : Node3D
 {
 	[Export] public Vector3I TargetChunkPosition { get; set; } = Vector3I.Zero;
 	[Export] public int WorldSeed { get; set; } = 1337;
@@ -99,13 +99,7 @@ public partial class VoxelPlanetTestTool : Node3D
 
 		// long taskId = WorkerThreadPool.AddGroupTask(Callable.From<int>(_generateNode),_visibleLeaves.Count());
 		// WorkerThreadPool.WaitForGroupTaskCompletion(taskId);
-		// long newTaskID = WorkerThreadPool.AddGroupTask(Callable.From<int>(_testGenerate),_visibleLeaves.Count());
-		// WorkerThreadPool.WaitForGroupTaskCompletion(newTaskID);
-
-		for (int i = 0; i < _generationSnapshot.Count(); i++)
-		{
-			_generateNode(i);
-		}
+		long newTaskID = WorkerThreadPool.AddGroupTask(Callable.From<int>(_testGenerate),_visibleLeaves.Count());
 	}
 
 	private void _testGenerate(int nodeIndex)
@@ -128,23 +122,28 @@ public partial class VoxelPlanetTestTool : Node3D
 		box.Position = node.Center;
 	}
 
-	private void _generateNode(int nodeIndex)
+private void _generateNode(int nodeIndex)
 	{
 		PlanetOctreeNode node = _generationSnapshot[nodeIndex];
 		Vector3I chunkPos = node.ChunkPos;
-		float effectiveRadius = (PlanetRadius * (float)CoreSize);
-		int scale = (int)node.Size / CoreSize;
-		GD.Print($"{node.Depth} {chunkPos} {effectiveRadius} {scale} {nodeIndex}");
+		float effectiveRadius = PlanetRadius * (float)CoreSize;
+		int scale = ((int)node.Size / CoreSize);
+		GD.Print($"{node.Depth} {chunkPos} {effectiveRadius} {scale}");
 
 		VoxelData[] voxels = PlanetGenerator.GeneratePaddedChunkDataPlanet(chunkPos, Vector3.Zero, WorldSeed, effectiveRadius, scale);
 		MeshData computedMesh = VoxelMesher.GenerateMarchingCubes(voxels, IsoLevel, 0, scale);
 
 		if (computedMesh != null && computedMesh.Verticies != null && computedMesh.Verticies.Count > 0)
 		{
-			float halfSize = node.Size / 2f;
+			Vector3 worldChunkOffset = new Vector3(
+				(chunkPos.X - TargetChunkPosition.X) * 16 * scale,
+				(chunkPos.Y - TargetChunkPosition.Y) * 16 * scale,
+				(chunkPos.Z - TargetChunkPosition.Z) * 16 * scale
+			);
+
 			for (int i = 0; i < computedMesh.Verticies.Count; i++)
 			{
-				computedMesh.Verticies[i] -= new Vector3(halfSize, halfSize, halfSize);
+				computedMesh.Verticies[i] += worldChunkOffset;
 			}
 
 			Vector3[] vertices = computedMesh.Verticies.ToArray();
@@ -155,14 +154,13 @@ public partial class VoxelPlanetTestTool : Node3D
 		}
 		else
 		{
-			GD.Print($"{nodeIndex} failed");
 			node.MeshesPending = false;
 		}
 	}
 
 	private void _computeMesh(int nodeIndex, Vector3[] verticies, int[] triangles, Vector3[] normals)
 	{
-		PlanetOctreeNode node = _generationSnapshot[nodeIndex];
+		PlanetOctreeNode node = _visibleLeaves[nodeIndex];
 		node.MeshesPending = false;
 
 		if (verticies.Length == 0 || !GodotObject.IsInstanceValid(this) || node.IsLeaf == false)
@@ -185,7 +183,7 @@ public partial class VoxelPlanetTestTool : Node3D
 		
 		AddChild(chunkMesh);
 
-		chunkMesh.Position = node.Center;
+		chunkMesh.Position = Vector3.Zero;
 		chunkMesh.Scale = Vector3.One;
 
 		node.RenderMesh = chunkMesh;

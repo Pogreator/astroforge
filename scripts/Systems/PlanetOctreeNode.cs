@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Godot;
 
@@ -17,6 +18,9 @@ public class PlanetOctreeNode
 
     public int LOD { get; private set; } = 4;
 
+    // Added a calculated lower-left bounding box property variable to place meshes flawlessly
+    public Vector3 Position => Center - new Vector3(Size * 0.5f, Size * 0.5f, Size * 0.5f);
+
     public PlanetOctreeNode(Vector3 center, float size, int depth, Vector3I chunkPos = default)
     {
         Center = center;
@@ -29,7 +33,7 @@ public class PlanetOctreeNode
     {
         if (!IsLeaf) return;
         Children = new PlanetOctreeNode[8];
-        float childSize = Size + 0.5f;
+        float childSize = Size * 0.5f;
         int childDepth = Depth + 1;
 
         Vector3I baseChunkPos = ChunkPos * 2;
@@ -43,17 +47,17 @@ public class PlanetOctreeNode
                 for (int z = -1; z <= 1; z += 2)
                 {
                     Vector3 childCenter = Center + new Vector3(x, y, z) * (childSize * 0.5f);
-                    
-                    int chunkOffsetX = x > 0 ? 16 : 0;
-                    int chunkOffsetY = y > 0 ? 16 : 0;
-                    int chunkOffsetZ = z > 0 ? 16 : 0;
+
+                    int chunkOffsetX = x > 0 ? 1 : -1;
+                    int chunkOffsetY = y > 0 ? 1 : -1;
+                    int chunkOffsetZ = z > 0 ? 1 : -1;
                     Vector3I childChunkPos = baseChunkPos + new Vector3I(chunkOffsetX, chunkOffsetY, chunkOffsetZ);
                     
                     Children[index] = new PlanetOctreeNode(childCenter, childSize, childDepth, childChunkPos);
                     index++;
                 }
             }
-        }        
+        }      
     }
 
     public void Collapse()
@@ -64,9 +68,17 @@ public class PlanetOctreeNode
             child.Collapse();
             if (child.RenderMesh != null)
             {
+                // if (GodotObject.IsInstanceValid(child.RenderMesh))
+                // {
+                //     if (child.RenderMesh.GetParent() is Node parent)
+                //     {
+                //         parent.RemoveChild(child.RenderMesh);
+                //     }
+                //     child.RenderMesh.QueueFree();
+                // }
                 child.RenderMesh.QueueFree();
                 child.RenderMesh = null;
-            }
+			}
         }
         Children = null;
         MeshesPending = false;
@@ -89,14 +101,15 @@ public class PlanetOctreeNode
     public void UpdateLOD(Vector3 cameraPosition, int maxDepth, float[] lodDistances)
     {
         float distance = Center.DistanceTo(cameraPosition);
-        
-        if (distance <= lodDistances[0])      LOD = 0; // Closest (LOD0Distance)
-        else if (distance <= lodDistances[1]) LOD = 1; // (LOD1Distance)
-        else if (distance <= lodDistances[2]) LOD = 2; // (LOD2Distance)
-        else if (distance <= lodDistances[3]) LOD = 3; // (LOD3Distance)
-        else                                  LOD = 4; // Furthest (LOD4Distance or beyond)
+        if (distance <= lodDistances[0])      LOD = 0; 
+        else if (distance <= lodDistances[1]) LOD = 1; 
+        else if (distance <= lodDistances[2]) LOD = 2; 
+        else if (distance <= lodDistances[3]) LOD = 3; 
+        else                                  LOD = 4; 
 
-        if (LOD == 0 && Depth < maxDepth)
+        int requiredDepth = Mathf.Clamp(maxDepth - LOD, 1, maxDepth);
+
+        if (Depth < requiredDepth)
         {
             if (IsLeaf)
             {

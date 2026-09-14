@@ -1,6 +1,8 @@
 [gd_scene format=3 uid="uid://brpguwe5eg43q"]
 
+[ext_resource type="Script" uid="uid://chkqan7qcly2b" path="res://scripts/Tools/VoxelPaddedTestTool.cs" id="1_oon5g"]
 [ext_resource type="Script" uid="uid://dt2kg76j82nv0" path="res://scripts/Tools/VoxelPlanetTestTool.cs" id="2_oon5g"]
+[ext_resource type="Script" uid="uid://brjr222sdkjwy" path="res://scripts/Tools/VoxelPlanetTestToolCube.cs" id="3_djdn0"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rtqa3"]
 metallic_specular = 0.0
@@ -10,7 +12,19 @@ ao_light_affect = 1.0
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1292302794]
 material_override = SubResource("StandardMaterial3D_rtqa3")
+script = ExtResource("1_oon5g")
+TestRadius = 3
 
 [node name="Planet" type="Node3D" parent="." unique_id=521708907]
 script = ExtResource("2_oon5g")
-PlanetRadius = 4
+WorldSeed = 1
+IsoLevel = 50
+PlanetRadius = 5
+RunRealTImeGeneration = true
+
+[node name="PlanetCube" type="Node3D" parent="." unique_id=481541541]
+visible = false
+script = ExtResource("3_djdn0")
+WorldSeed = 1
+PlanetRadius = 5
+RunRealTImeGeneration = true

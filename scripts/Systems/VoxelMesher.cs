@@ -11,24 +11,32 @@ public class MeshData
 
 public static class VoxelMesher
 {
-    private static int GetPaddedIndex(int x, int y, int z, int size)
+    private const int CoreSize = 16;
+    private const int PaddedSize = 18;
+
+    private static int GetPaddedIndex(int x, int y, int z) => (x * PaddedSize * PaddedSize) + (y * PaddedSize) + z;
+
+    private static Vector3 CalculateSmoothNormal(VoxelData[] paddedData, int x, int y, int z)
     {
-        int paddedSize = size + 2;
-        return (x * paddedSize * paddedSize) + (y * paddedSize) + z;
-    }
+        int cx = Mathf.Clamp(x, 1, PaddedSize - 2);
+        int cy = Mathf.Clamp(y, 1, PaddedSize - 2);
+        int cz = Mathf.Clamp(z, 1, PaddedSize - 2);
 
-    private static Vector3 CalculateSmoothNormal(VoxelData[] paddedData, int x, int y, int z, int size)
-    {
-        int paddedSize = size + 2;
-        
-        int xLeft  = GetPaddedIndex(Mathf.Clamp(x - 1, 0, paddedSize - 1), y, z, size);
-        int xRight = GetPaddedIndex(Mathf.Clamp(x + 1, 0, paddedSize - 1), y, z, size);
+        int xLeft  = GetPaddedIndex(cx - 1, cy, cz);
+        int xRight = GetPaddedIndex(cx + 1, cy, cz);
 
-        int yLeft  = GetPaddedIndex(x, Mathf.Clamp(y - 1, 0, paddedSize - 1), z, size);
-        int yRight = GetPaddedIndex(x, Mathf.Clamp(y + 1, 0, paddedSize - 1), z, size);
+        int yLeft  = GetPaddedIndex(cx, cy - 1, cz);
+        int yRight = GetPaddedIndex(cx, cy + 1, cz);
 
-        int zLeft  = GetPaddedIndex(x, y, Mathf.Clamp(z - 1, 0, paddedSize - 1), size);
-        int zRight = GetPaddedIndex(x, y, Mathf.Clamp(z + 1, 0, paddedSize - 1), size);
+        int zLeft  = GetPaddedIndex(cx, cy, cz - 1);
+        int zRight = GetPaddedIndex(cx, cy, cz + 1);
+
+        if (xRight >= paddedData.Length || xLeft >= paddedData.Length ||
+            yRight >= paddedData.Length || yLeft >= paddedData.Length ||
+            zRight >= paddedData.Length || zLeft >= paddedData.Length)
+        {
+            return Vector3.Up;
+        }
 
         float gradX = paddedData[xRight].Iso - paddedData[xLeft].Iso;
         float gradY = paddedData[yRight].Iso - paddedData[yLeft].Iso;
@@ -39,7 +47,6 @@ public static class VoxelMesher
         return normal.IsZeroApprox() ? Vector3.Up : normal.Normalized();
     }
 
-    // Helper mappings to identify which corners form each edge (0-11)
     private static int GetStartCornerIndex(int edge) => edge switch {
         0=>0, 1=>1, 2=>3, 3=>0, 4=>4, 5=>5, 6=>7, 7=>4, 8=>0, 9=>1, 10=>2, 11=>3, _=>0
     };
@@ -47,21 +54,24 @@ public static class VoxelMesher
         0=>1, 1=>2, 2=>2, 3=>3, 4=>5, 5=>6, 6=>6, 7=>7, 8=>4, 9=>5, 10=>6, 11=>7, _=>0
     };
 
-    // Requires padded data so that it can smoothly transition ( 18x18x18 to 16x16x16 )
-    public static MeshData GenerateMarchingCubes(VoxelData[] paddedVoxelData, int size, int isolevel, int lodIndex)
+    public static MeshData GenerateMarchingCubes(VoxelData[] paddedVoxelData, int isolevel, int lodIndex, int scale)
     {
+        if (paddedVoxelData == null || paddedVoxelData.Length < (PaddedSize * PaddedSize * PaddedSize))
+        {
+            GD.PrintErr($"Marching Cubes aborted: Passed data array size ({paddedVoxelData?.Length ?? 0}) is not fully padded to 5832.");
+            return new MeshData();
+        }
+
         var meshData = new MeshData();
         int vertexIndexCounter = 0;
 
-        // Scale loop iterations based on the true LOD scale factor steps
         int step = (int)Mathf.Pow(2, lodIndex);
         
-        // Loop from 1 to size inside the 18x18x18 grid boundaries
-        for (int x = 1; x <= size; x += step)
+        for (int x = 1; x <= CoreSize; x += step)
         {
-            for (int y = 1; y <= size; y += step)
+            for (int y = 1; y <= CoreSize; y += step)
             {
-                for (int z = 1; z <= size; z += step)
+                for (int z = 1; z <= CoreSize; z += step)
                 {
                     int cubeIndex = 0;
                     byte[] cubeValues = new byte[8];
@@ -74,9 +84,7 @@ public static class VoxelMesher
                         int sampleY = y + (offset.Y * step);
                         int sampleZ = z + (offset.Z * step);
 
-                        int sampleIndex = GetPaddedIndex(sampleX, sampleY, sampleZ, size);
-                        
-                        // FIXED: Access the inner density parameter
+                        int sampleIndex = GetPaddedIndex(sampleX, sampleY, sampleZ);
                         cubeValues[i] = paddedVoxelData[sampleIndex].Iso;
 
                         if (cubeValues[i] >= isolevel)
@@ -91,13 +99,10 @@ public static class VoxelMesher
                     for (int i = 0; i < 8; i++)
                     {
                         Vector3I offset = MarchingTable.Corners[i] * step;
-                        cornerNormals[i] = CalculateSmoothNormal(paddedVoxelData, x + offset.X, y + offset.Y, z + offset.Z, size);
+                        cornerNormals[i] = CalculateSmoothNormal(paddedVoxelData, x + offset.X, y + offset.Y, z + offset.Z);
                     }
                     
-                    // Center the local mesh origin relative to the physical bounding box center boundaries
-                    float halfSize = size * 0.5f;
-                    Vector3 cellOrigin = new Vector3(x - 1, y - 1, z - 1) - new Vector3(halfSize, halfSize, halfSize);
-                    
+                    Vector3 cellOrigin = new Vector3(x - 1, y - 1, z - 1);
                     Vector3[] localEdgeVertices = new Vector3[12];
                     Vector3[] localEdgeNormals = new Vector3[12];
 
@@ -112,7 +117,7 @@ public static class VoxelMesher
                         byte valStart = cubeValues[cornerIdxStart];
                         byte valEnd = cubeValues[cornerIdxEnd];
 
-                        float t = 0.8f; 
+                        float t = 0.5f; // Fixed slope midline fallback allocation
                         if (valEnd != valStart)
                         {
                             t = (float)(isolevel - valStart) / (float)(valEnd - valStart);
@@ -121,15 +126,10 @@ public static class VoxelMesher
                         Vector3 scaledStart = edgeStart * step;
                         Vector3 scaledEnd = edgeEnd * step;
     
-                        localEdgeVertices[i] = cellOrigin + scaledStart + ((scaledEnd - scaledStart) * t);
-
-                        Vector3 normalStart = cornerNormals[cornerIdxStart];
-                        Vector3 normalEnd = cornerNormals[cornerIdxEnd];
-
-                        localEdgeNormals[i] = normalStart.Lerp(normalEnd, t).Normalized();
+                        localEdgeVertices[i] = (cellOrigin + scaledStart + ((scaledEnd - scaledStart) * t)) * scale;
+                        localEdgeNormals[i] = cornerNormals[cornerIdxStart].Lerp(cornerNormals[cornerIdxEnd], t).Normalized();
                     }
 
-                    // Iterate triangulation table to output index faces
                     for (int i = 0; i < 16; i += 3)
                     {
                         int edge0 = MarchingTable.Triangles[cubeIndex, i];
